@@ -36,6 +36,7 @@ parse_args args = do
                                     ("",fl) ("",fl))
 
 -- Parses the next character from the ProgState.
+consume_chars :: IO ProgState -> IO ProgState
 consume_chars iost = do
     st <- iost
     if (not $ null ((snd . file) st))
@@ -99,7 +100,7 @@ nul_func :: ProgState -> IO ProgState
 nul_func st = return 
               (ProgState (ptr st) (vals st) (cnsm_file_char st) (loop_fl st))
 
--- Begins a loop -- TODO
+-- Begins a loop.
 beg_loop :: ProgState -> IO ProgState
 beg_loop st = if (vals st)!(ptr st) == 0
                 then jmp_loop st
