@@ -28,7 +28,7 @@ parse_args args = do
     if head args == "-m"
       then do
           fl <-  readFile (args!!2) 
-          return (ProgState 0 (listArray (0,read (args!!1)) (repeat 0)) 
+          return (ProgState 0 (listArray (0,read (args!!1) - 1) (repeat 0)) 
                                     ("",fl) ("",fl))
       else do
           fl <- readFile (head args)
