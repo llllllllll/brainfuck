@@ -54,7 +54,9 @@ parse_char c st
     | c == (toEnum . fromEnum) '-' = val_decr st
     | c == (toEnum . fromEnum) '.' = val_prnt st
     | c == (toEnum . fromEnum) ',' = val_inpt st
-    | c == (toEnum . fromEnum) '[' = beg_loop st
+    | c == (toEnum . fromEnum) '[' = if (vals st)!(ptr st) /= 0
+                                       then beg_loop st
+                                       else jmp_loop st
     | c == (toEnum . fromEnum) ']' = end_loop st
     | otherwise = nul_func st
 
@@ -113,13 +115,11 @@ end_loop st = if (vals st)!(ptr st) == 0
                 
 -- Jumps to the end of a loop without processing the contents.
 jmp_loop :: ProgState -> IO ProgState
-jmp_loop st = if (not $ null ((snd . file) st))
-                then do
-                    let c = (head . snd . file) st
-                    if c == (toEnum . fromEnum) ']' && (vals st)!(ptr st) /= 0
-                      then nul_func st
-                      else nul_func st >>= jmp_loop
-                else nul_func st
+jmp_loop st = do
+    let c = (head . snd . file) st
+    if c == (toEnum . fromEnum) ']'
+      then end_loop st
+      else nul_func st >>= jmp_loop
 
 -- Moves one char from the left to the consumed.
 cnsm_file_char :: ProgState -> (String,String)
