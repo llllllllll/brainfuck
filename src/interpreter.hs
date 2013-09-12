@@ -1,5 +1,6 @@
 -- Joe Jevnik
 -- 9.11.2013
+-- Edited: 9.12.2013
 
 import System.Environment
 import System.IO
@@ -9,10 +10,10 @@ import Data.Array
 import Data.Word
 
 -- Data type to hold the state of the program.
-data ProgState = ProgState { ptr     :: Int             -- Value Pointer
+data ProgState = ProgState { ptr     :: Int               -- Value Pointer
                            , vals    :: Array Int Word32  -- Values
-                           , file    :: (String,String) -- (consumed,left)
-                           , loop_fl :: (String,String) -- (consumed,left)
+                           , file    :: (String,String)   -- (consumed,left)
+                           , loop_fl :: [(String,String)] -- (consumed,left)
                            }
 
 -- Starts consuming characters from the ProgState file.
@@ -29,11 +30,11 @@ parse_args args = do
       then do
           fl <-  readFile (args!!2) 
           return (ProgState 0 (listArray (0,read (args!!1) - 1) (repeat 0)) 
-                                    ("",fl) ("",fl))
+                                    ("",fl) [])
       else do
           fl <- readFile (head args)
           return (ProgState 0 (listArray (0,29999) (repeat 0))
-                                    ("",fl) ("",fl))
+                                    ("",fl) [])
 
 -- Parses the next character from the ProgState.
 consume_chars :: IO ProgState -> IO ProgState
@@ -43,8 +44,7 @@ consume_chars iost = do
       then do
           let c = (toEnum . fromEnum) $ (head . snd . file) st
           consume_chars $ parse_char c st
-      else return (ProgState 0 (listArray (0,29999) (repeat 0)) ("","") 
-                                 ("","")) 
+      else return (ProgState 0 (listArray (0,29999) (repeat 0)) ("","") []) 
 
 -- Parses a character into the proper function.
 parse_char :: Word32 -> ProgState -> IO ProgState
@@ -96,6 +96,7 @@ val_inpt st = do
     return (ProgState (ptr st) ((vals st)//[(ptr st,(toEnum . fromEnum) c)]) 
                           (cnsm_file_char st) (loop_fl st))
 
+-- Consumes one character but otherwise has no affect on the ProgState.
 nul_func :: ProgState -> IO ProgState
 nul_func st = return 
               (ProgState (ptr st) (vals st) (cnsm_file_char st) (loop_fl st))
@@ -105,13 +106,14 @@ beg_loop :: ProgState -> IO ProgState
 beg_loop st = if (vals st)!(ptr st) == 0
                 then jmp_loop st
                 else return (ProgState (ptr st) (vals st) (cnsm_file_char st)
-                                       (cnsm_file_char st))
+                                       ((cnsm_file_char st):loop_fl st))
 
 -- Brings the program back to the top of a loop if the value at the ptr is /= 0.
 end_loop :: ProgState -> IO ProgState
 end_loop st = if (vals st)!(ptr st) == 0
-                then nul_func st
-                else return (ProgState (ptr st) (vals st) (loop_fl st)
+                then return (ProgState (ptr st) (vals st) (cnsm_file_char st) 
+                                           (tail (loop_fl st)))
+                else return (ProgState (ptr st) (vals st) (head (loop_fl st))
                                        (loop_fl st))
                 
 -- Jumps to the end of a loop without processing the contents.
