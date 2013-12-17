@@ -3,13 +3,14 @@
 -- Edited: 16.12.2013
 
 import Control.Applicative ((<$>))
-import Control.Monad       (when)
 import Data.Array.Unboxed  (Array,UArray,(!),(//),listArray,bounds)
+import Data.Array.IO       (IOUArray)
+import Data.Array.MArray   (MArray,writeArray)
+import Data.Array.Unsafe   (unsafeThaw)
 import Data.List           (groupBy)
 import Data.Word           (Word8)
 import System.Environment  (getArgs)
-import System.Exit         (exitSuccess)
-import Text.Read           (readMaybe)
+import System.IO           (isEOF)
 
 -- -----------------------------------------------------------------------------
 -- Data types.
@@ -33,9 +34,9 @@ data ProgState = ProgState { ptr        :: Int
                            , tape       :: UArray Int Word8
                            , currCmd    :: Int
                            , cmds       :: Array Int Command
+                           , numCmds    :: Int
                            , loopStates :: [Int]
                            }
-                 deriving Show
 
 -- -----------------------------------------------------------------------------
 -- File Parsing and reading.
@@ -48,17 +49,19 @@ parseArgs :: [String] -> IO ()
 parseArgs [] = putStrLn "Usage: runbrainfuck [FILE]"
 parseArgs as = do
     let b = "-O2" `elem` as
-    cs <- readFile (if b
-                      then (head . tail) as
-                      else head as)  >>= return . (if b
-                                                     then o2
-                                                     else id) . getCommands
-    process $ ProgState { ptr        = 0
-                        , tape       = listArray (0,29999) $ repeat 0
-                        , currCmd    = 0
-                        , cmds       = listArray (0,length cs - 1) cs
-                        , loopStates = []
-                        }
+    cs <- (if b
+             then o2
+             else id) . getCommands <$> readFile (if b
+                                                    then (head . tail) as
+                                                    else head as)
+    let csl = length cs
+    process ProgState { ptr        = 0
+                      , tape       = listArray (0,29999) $ repeat 0
+                      , currCmd    = 0
+                      , cmds       = listArray (0,csl - 1) cs
+                      , numCmds    = csl
+                      , loopStates = []
+                      }
 
 -- | Reads a string into a list of 'Command's
 getCommands :: String -> [Command]
@@ -76,26 +79,27 @@ getCommands (c:cs)
 
 -- | Converts a 'Command' into the proper function
 parseCmd :: Command -> ProgState -> IO ProgState
-parseCmd PtrRight      = return . ptrJump     1
-parseCmd PtrLeft       = return . ptrJump   (-1)
-parseCmd (PtrJump n)   = return . ptrJump     n
-parseCmd ValIncr       = return . valChange   1
-parseCmd ValDecr       = return . valChange (-1)
-parseCmd (ValChange n) = return . valChange   n
+parseCmd PtrRight      = return . ptrJump   1
+parseCmd PtrLeft       = return . ptrJump (-1)
+parseCmd (PtrJump n)   = return . ptrJump   n
+parseCmd ValIncr       = valChange          1
+parseCmd ValDecr       = valChange        (-1)
+parseCmd (ValChange n) = valChange          n
 parseCmd ValPrnt       = valPrnt
 parseCmd ValInpt       = valInpt
 parseCmd BegLoop       = return . begLoop
 parseCmd EndLoop       = return . endLoop
 parseCmd NulFunc       = return . nulFunc
 
-process :: ProgState -> IO ()
-process st
-    | currCmd st > (snd . bounds) (cmds st) = return ()
-    | otherwise                             = (applyCommand st >>= process)
-
 -- | Applies the current command to the state.
 applyCommand :: ProgState -> IO ProgState
-applyCommand st = parseCmd (cmds st ! currCmd st) $ st
+applyCommand st = parseCmd (cmds st ! currCmd st) st
+
+-- | Loops through, calling apply to each command in the array.
+process :: ProgState -> IO ()
+process st
+    | currCmd st == numCmds st = return ()
+    | otherwise                = applyCommand st >>= process
 
 -- -----------------------------------------------------------------------------
 -- Optimization.
@@ -149,24 +153,28 @@ ptrJump n st = case ptr st + n of
                      | otherwise -> nulFunc st { ptr = m }
 
 -- | Increments the value at the current pointer by n.
-valChange :: Int -> ProgState -> ProgState
-valChange n st = nulFunc st { tape = tape st // [(ptr st,change n st)] }
+valChange :: Int -> ProgState -> IO ProgState
+valChange n st = (unsafeThaw (tape st) :: IO (IOUArray Int Word8))
+                 >>= \t -> writeArray t (ptr st) (change n st)
+                 >> return (nulFunc st)
   where
       change n st = fromIntegral $ n + fromIntegral (tape st ! ptr st)
 
 -- | Prints the Word8 at tape st ! ptr st.
 valPrnt :: ProgState -> IO ProgState
-valPrnt st = putChar ((toEnum . fromEnum) (tape st ! ptr st ))
+valPrnt st = putChar ((toEnum . fromEnum) (tape st ! ptr st))
              >> return (nulFunc st)
 
 -- | Reads a Word8 from the user to put at tape!ptr.
 valInpt :: ProgState -> IO ProgState
-valInpt st = getChar >>= \c -> return $ nulFunc
-             st { tape = tape st // [(ptr st,(toEnum . fromEnum) c)] }
-
--- | Consumes one character but otherwise has no affect on the ProgState.
-nulFunc :: ProgState -> ProgState
-nulFunc st = st { currCmd = currCmd st + 1 }
+valInpt st = isEOF >>= \b ->
+             if not b
+               then do
+                   c <- getChar
+                   t <- unsafeThaw (tape st) :: IO (IOUArray Int Word8)
+                   writeArray t (ptr st) ((toEnum . fromEnum) c)
+                   return $ nulFunc st
+               else return $ nulFunc st
 
 -- | Begins a loop.
 begLoop :: ProgState -> ProgState
@@ -182,6 +190,17 @@ endLoop st
     | tape st ! ptr st == 0 = nulFunc st { loopStates = tail $ loopStates st }
     | otherwise             = st { currCmd = head $ loopStates st }
 
+-- -----------------------------------------------------------------------------
+-- Helper functions
+
+-- | Converts a Char to a Word8
+charToWord :: Char -> Word8
+charToWord = toEnum . fromEnum
+
+-- | Consumes one character but otherwise has no affect on the ProgState.
+nulFunc :: ProgState -> ProgState
+nulFunc st = st { currCmd = currCmd st + 1 }
+
 -- | Jumps to the end of a loop without processing the contents.
 -- Goes to the matching ']' for the given ']', does so by using n to count
 -- nesting levels, where when it encounters a '[', it adds to the nesting level,
@@ -195,11 +214,3 @@ jmpLoop st = jmpLoop' (cmds st) (currCmd st) st 0
           | cs ! (cc + 1) == EndLoop           = jmpLoop' cs (cc + 1) st (n - 1)
           | cs ! (cc + 1) == BegLoop           = jmpLoop' cs (cc + 1) st (n + 1)
           | otherwise                          = jmpLoop' cs (cc + 1) st n
-
-
--- -----------------------------------------------------------------------------
--- Helper functions
-
--- | Converts a Char to a Word8
-charToWord :: Char -> Word8
-charToWord = toEnum . fromEnum
