@@ -63,16 +63,6 @@ parseArgs as = do
 -- | Reads a string into a list of 'Command's
 getCommands :: String -> [Command]
 getCommands [] = []
-getCommands [c]
-          | c == '>'  = [PtrRight]
-          | c == '<'  = [PtrLeft]
-          | c == '+'  = [ValIncr]
-          | c == '-'  = [ValDecr]
-          | c == '.'  = [ValPrnt]
-          | c == ','  = [ValInpt]
-          | c == '['  = [BegLoop]
-          | c == ']'  = [EndLoop]
-          | otherwise = []
 getCommands (c:cs)
           | c == '>'  = PtrRight : getCommands cs
           | c == '<'  = PtrLeft  : getCommands cs
