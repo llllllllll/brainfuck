@@ -143,7 +143,7 @@ collapsePtrJmps cs = let cs' = groupBy g cs
 
 -- | Replaces the structure [-] with a single valSet to 0.
 replaceZeros :: [Command] -> [Command]
-replaceZeros cs = replace [BegLoop,ValDecr,EndLoop] [ValSet 0] cs
+replaceZeros = replace [BegLoop,ValDecr,EndLoop] [ValSet 0]
 
 -- | Applies the full optimizations.
 o2 :: [Command] -> [Command]
