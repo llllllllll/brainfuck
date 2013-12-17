@@ -8,6 +8,7 @@ import Data.Array.IO       (IOUArray)
 import Data.Array.MArray   (MArray,writeArray)
 import Data.Array.Unsafe   (unsafeThaw)
 import Data.List           (groupBy)
+import Data.List.Utils     (replace)
 import Data.Word           (Word8)
 import System.Environment  (getArgs)
 import System.IO           (isEOF)
@@ -22,6 +23,7 @@ data Command = PtrRight       -- ^ '>'
               | ValIncr       -- ^ '+'
               | ValDecr       -- ^ '-'
               | ValChange Int -- ^ repeted cals to val changes
+              | ValSet Word8
               | ValPrnt       -- ^ '.'
               | ValInpt       -- ^ ','
               | BegLoop       -- ^ '['
@@ -48,7 +50,7 @@ main = getArgs >>= parseArgs
 parseArgs :: [String] -> IO ()
 parseArgs [] = putStrLn "Usage: runbrainfuck [FILE]"
 parseArgs as = do
-    let b = "-O2" `elem` as
+    let b = "-O" `elem` as
     cs <- (if b
              then o2
              else id) . getCommands <$> readFile (if b
@@ -85,6 +87,7 @@ parseCmd (PtrJump n)   = return . ptrJump   n
 parseCmd ValIncr       = valChange          1
 parseCmd ValDecr       = valChange        (-1)
 parseCmd (ValChange n) = valChange          n
+parseCmd (ValSet n)    = valSet             n
 parseCmd ValPrnt       = valPrnt
 parseCmd ValInpt       = valInpt
 parseCmd BegLoop       = return . begLoop
@@ -138,9 +141,13 @@ collapsePtrJmps cs = let cs' = groupBy g cs
       count (PtrLeft:cs)  = (\(a,b) -> (a,b + 1)) $ count cs
       count (c:cs)        = count cs
 
+-- | Replaces the structure [-] with a single valSet to 0.
+replaceZeros :: [Command] -> [Command]
+replaceZeros cs = replace [BegLoop,ValDecr,EndLoop] [ValSet 0] cs
+
 -- | Applies the full optimizations.
 o2 :: [Command] -> [Command]
-o2 = collapsePtrJmps . collapseValChanges
+o2 = collapsePtrJmps . collapseValChanges . replaceZeros
 
 -- -----------------------------------------------------------------------------
 -- Commands.
@@ -159,6 +166,12 @@ valChange n st = (unsafeThaw (tape st) :: IO (IOUArray Int Word8))
                  >> return (nulFunc st)
   where
       change n st = fromIntegral $ n + fromIntegral (tape st ! ptr st)
+
+-- | Assings the current value to n
+valSet :: Word8 -> ProgState -> IO ProgState
+valSet n st = (unsafeThaw (tape st) :: IO (IOUArray Int Word8))
+              >>= \t -> writeArray t (ptr st) n
+              >> return (nulFunc st)
 
 -- | Prints the Word8 at tape st ! ptr st.
 valPrnt :: ProgState -> IO ProgState
