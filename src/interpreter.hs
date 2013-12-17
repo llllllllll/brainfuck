@@ -50,10 +50,9 @@ parseArgs as = do
     let b = "-O2" `elem` as
     cs <- readFile (if b
                       then (head . tail) as
-                      else head as)
-          >>= return . (if b
-                          then o2
-                          else removeComments) . getCommands
+                      else head as)  >>= return . (if b
+                                                     then o2
+                                                     else id) . getCommands
     process $ ProgState { ptr        = 0
                         , tape       = listArray (0,29999) $ repeat 0
                         , currCmd    = 0
@@ -63,18 +62,27 @@ parseArgs as = do
 
 -- | Reads a string into a list of 'Command's
 getCommands :: String -> [Command]
-getCommands =  map parseChar
-  where
-      parseChar c
-          | c == '>'  = PtrRight
-          | c == '<'  = PtrLeft
-          | c == '+'  = ValIncr
-          | c == '-'  = ValDecr
-          | c == '.'  = ValPrnt
-          | c == ','  = ValInpt
-          | c == '['  = BegLoop
-          | c == ']'  = EndLoop
-          | otherwise = NulFunc
+getCommands [] = []
+getCommands [c]
+          | c == '>'  = [PtrRight]
+          | c == '<'  = [PtrLeft]
+          | c == '+'  = [ValIncr]
+          | c == '-'  = [ValDecr]
+          | c == '.'  = [ValPrnt]
+          | c == ','  = [ValInpt]
+          | c == '['  = [BegLoop]
+          | c == ']'  = [EndLoop]
+          | otherwise = []
+getCommands (c:cs)
+          | c == '>'  = PtrRight : getCommands cs
+          | c == '<'  = PtrLeft  : getCommands cs
+          | c == '+'  = ValIncr  : getCommands cs
+          | c == '-'  = ValDecr  : getCommands cs
+          | c == '.'  = ValPrnt  : getCommands cs
+          | c == ','  = ValInpt  : getCommands cs
+          | c == '['  = BegLoop  : getCommands cs
+          | c == ']'  = EndLoop  : getCommands cs
+          | otherwise =            getCommands cs
 
 -- | Converts a 'Command' into the proper function
 parseCmd :: Command -> ProgState -> IO ProgState
@@ -101,11 +109,6 @@ applyCommand st = parseCmd (cmds st ! currCmd st) $ st
 
 -- -----------------------------------------------------------------------------
 -- Optimization.
-
--- | Removes all the Comments from the list of commands to speed up
--- interpretation.
-removeComments :: [Command] -> [Command]
-removeComments = filter (/= NulFunc)
 
 -- | Collapses all chains of '+' and '-' into a single ValChange command.
 collapseValChanges :: [Command] -> [Command]
@@ -143,7 +146,7 @@ collapsePtrJmps cs = let cs' = groupBy g cs
 
 -- | Applies the full optimizations.
 o2 :: [Command] -> [Command]
-o2 = collapsePtrJmps . collapseValChanges . removeComments
+o2 = collapsePtrJmps . collapseValChanges
 
 -- -----------------------------------------------------------------------------
 -- Commands.
