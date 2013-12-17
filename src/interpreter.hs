@@ -53,7 +53,6 @@ parseArgs as = do
                       else head as)  >>= return . (if b
                                                      then o2
                                                      else id) . getCommands
-    print cs
     process $ ProgState { ptr        = 0
                         , tape       = listArray (0,29999) $ repeat 0
                         , currCmd    = 0
