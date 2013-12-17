@@ -53,6 +53,7 @@ parseArgs as = do
                       else head as)  >>= return . (if b
                                                      then o2
                                                      else id) . getCommands
+    print cs
     process $ ProgState { ptr        = 0
                         , tape       = listArray (0,29999) $ repeat 0
                         , currCmd    = 0
@@ -150,7 +151,7 @@ ptrJump n st = case ptr st + n of
 
 -- | Increments the value at the current pointer by n.
 valChange :: Int -> ProgState -> ProgState
-valChange n st = nulFunc st { tape = tape st//[(ptr st,change n st)] }
+valChange n st = nulFunc st { tape = tape st // [(ptr st,change n st)] }
   where
       change n st = fromIntegral $ n + fromIntegral (tape st ! ptr st)
 
@@ -162,7 +163,7 @@ valPrnt st = putChar ((toEnum . fromEnum) (tape st ! ptr st ))
 -- | Reads a Word8 from the user to put at tape!ptr.
 valInpt :: ProgState -> IO ProgState
 valInpt st = getChar >>= \c -> return $ nulFunc
-             st { tape = tape st//[(ptr st,(toEnum . fromEnum) c)] }
+             st { tape = tape st // [(ptr st,(toEnum . fromEnum) c)] }
 
 -- | Consumes one character but otherwise has no affect on the ProgState.
 nulFunc :: ProgState -> ProgState
@@ -179,14 +180,22 @@ begLoop st
 -- ptr is /= 0.
 endLoop :: ProgState -> ProgState
 endLoop st
-    | tape st ! ptr st == 0 = nulFunc st { loopStates = drop 1 $ loopStates st }
+    | tape st ! ptr st == 0 = nulFunc st { loopStates = tail $ loopStates st }
     | otherwise             = st { currCmd = head $ loopStates st }
 
 -- | Jumps to the end of a loop without processing the contents.
+-- Goes to the matching ']' for the given ']', does so by using n to count
+-- nesting levels, where when it encounters a '[', it adds to the nesting level,
+-- and when it encounters ']', it takes one away, it only terminates when it is
+-- not nesting and it hits the ']'.
 jmpLoop :: ProgState -> ProgState
-jmpLoop st
-    | cmds st ! (currCmd st + 1) == EndLoop = endLoop st
-    | otherwise                             = jmpLoop $ nulFunc st
+jmpLoop st = jmpLoop' (cmds st) (currCmd st) st 0
+  where
+      jmpLoop' cs cc st n
+          | n == 0 && cs ! (cc + 1) == EndLoop = st { currCmd = cc + 2 }
+          | cs ! (cc + 1) == EndLoop           = jmpLoop' cs (cc + 1) st (n - 1)
+          | cs ! (cc + 1) == BegLoop           = jmpLoop' cs (cc + 1) st (n + 1)
+          | otherwise                          = jmpLoop' cs (cc + 1) st n
 
 
 -- -----------------------------------------------------------------------------
