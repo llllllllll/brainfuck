@@ -1,24 +1,23 @@
-	Tue Dec 17 16:57 2013 Time and Allocation Profiling Report  (Final)
+	Fri Dec 20 01:33 2013 Time and Allocation Profiling Report  (Final)
 
 	   unsafeWriteTest +RTS -p -RTS ../txt/squares
 
-	total time  =        0.43 secs   (434 ticks @ 1000 us, 1 processor)
+	total time  =        0.42 secs   (420 ticks @ 1000 us, 1 processor)
 	total alloc = 464,251,472 bytes  (excludes profiling overheads)
 
 COST CENTRE      MODULE    %time %alloc
 
-applyCommand     Main       30.4   13.8
-process          Main       19.6   37.7
-valChange.\      Main        7.8   17.4
-jmpLoop.jmpLoop' Main        6.9    7.0
-valChange        Main        6.7    0.0
-nulFunc          Main        6.0    4.2
-ptrJump          Main        4.6   10.8
-endLoop          Main        4.4    3.9
-parseCmd         Main        4.1    0.0
-valChange.change Main        3.7    1.9
-begLoop          Main        2.5    2.4
-ptr              Main        2.1    0.0
+applyCommand     Main       30.5   13.8
+process          Main       17.6   37.7
+ptrJump          Main        8.1   10.8
+nulFunc          Main        7.9    4.2
+endLoop          Main        6.9    3.9
+valChange.\      Main        6.2   17.4
+valChange        Main        5.2    0.0
+valChange.change Main        5.2    1.9
+jmpLoop.jmpLoop' Main        4.8    7.0
+parseCmd         Main        3.3    0.0
+begLoop          Main        1.9    2.4
 
 
                                                                   individual     inherited
@@ -27,44 +26,44 @@ COST CENTRE             MODULE                  no.     entries  %time %alloc   
 MAIN                    MAIN                     44           0    0.0    0.0   100.0  100.0
  main                   Main                     89           0    0.0    0.0    99.8  100.0
   parseArgs             Main                     90           1    0.0    0.0    99.8  100.0
-   process              Main                     96     1367739   19.6   37.7    99.8  100.0
-    applyCommand        Main                     99     1367738   30.4   13.8    80.2   62.3
-     valPrnt            Main                    132         460    0.2    0.1     0.2    0.1
+   process              Main                     96     1367739   17.6   37.7    99.8  100.0
+    applyCommand        Main                     99     1367738   30.5   13.8    82.1   62.3
+     valPrnt            Main                    132         460    0.5    0.1     0.5    0.1
       nulFunc           Main                    135         460    0.0    0.0     0.0    0.0
        currCmd          Main                    136         460    0.0    0.0     0.0    0.0
       ptr               Main                    134         460    0.0    0.0     0.0    0.0
       tape              Main                    133         460    0.0    0.0     0.0    0.0
-     endLoop            Main                    121      204529    4.4    3.9     4.6    4.1
-      nulFunc           Main                    126       64319    0.2    0.2     0.2    0.2
+     endLoop            Main                    121      204529    6.9    3.9     6.9    4.1
+      nulFunc           Main                    126       64319    0.0    0.2     0.0    0.2
        currCmd          Main                    127       64319    0.0    0.0     0.0    0.0
       loopStates        Main                    124      204511    0.0    0.0     0.0    0.0
       ptr               Main                    123      204529    0.0    0.0     0.0    0.0
       tape              Main                    122      204529    0.0    0.0     0.0    0.0
-     ptrJump            Main                    117      523226    4.6   10.8     7.4   12.6
-      nulFunc           Main                    119      523226    2.8    1.8     2.8    1.8
+     ptrJump            Main                    117      523226    8.1   10.8    11.4   12.6
+      nulFunc           Main                    119      523226    3.3    1.8     3.3    1.8
        currCmd          Main                    120      523226    0.0    0.0     0.0    0.0
       ptr               Main                    118      523226    0.0    0.0     0.0    0.0
-     begLoop            Main                    112       77928    2.5    2.4    10.1   10.3
+     begLoop            Main                    112       77928    1.9    2.4     7.6   10.3
       loopStates        Main                    137       64301    0.0    0.0     0.0    0.0
-      jmpLoop           Main                    129       13609    0.5    0.8     7.6    7.7
-       jmpLoop.jmpLoop' Main                    130       78224    6.9    7.0     7.1    7.0
-        ==              Main                    131      194991    0.2    0.0     0.2    0.0
+      jmpLoop           Main                    129       13609    0.2    0.8     5.5    7.7
+       jmpLoop.jmpLoop' Main                    130       78224    4.8    7.0     5.2    7.0
+        ==              Main                    131      194991    0.5    0.0     0.5    0.0
       cmds              Main                    128       13609    0.0    0.0     0.0    0.0
       currCmd           Main                    125       45604    0.0    0.0     0.0    0.0
-      nulFunc           Main                    115       64319    0.0    0.2     0.0    0.2
+      nulFunc           Main                    115       64319    0.2    0.2     0.2    0.2
        currCmd          Main                    116       64319    0.0    0.0     0.0    0.0
       ptr               Main                    114       77928    0.0    0.0     0.0    0.0
       tape              Main                    113       77928    0.0    0.0     0.0    0.0
-     valChange          Main                    103      561595    6.7    0.0    23.3   21.3
-      valChange.\       Main                    105      561595    7.8   17.4    16.6   21.3
-       nulFunc          Main                    110      561595    3.0    1.9     3.0    1.9
+     valChange          Main                    103      561595    5.2    0.0    21.9   21.3
+      valChange.\       Main                    105      561595    6.2   17.4    16.7   21.3
+       nulFunc          Main                    110      561595    4.3    1.9     4.3    1.9
         currCmd         Main                    111      561595    0.0    0.0     0.0    0.0
-       valChange.change Main                    107      561595    3.7    1.9     3.7    1.9
+       valChange.change Main                    107      561595    5.2    1.9     5.2    1.9
         ptr             Main                    109      561595    0.0    0.0     0.0    0.0
         tape            Main                    108      561595    0.0    0.0     0.0    0.0
-       ptr              Main                    106      561595    2.1    0.0     2.1    0.0
+       ptr              Main                    106      561595    1.0    0.0     1.0    0.0
       tape              Main                    104      561595    0.0    0.0     0.0    0.0
-     parseCmd           Main                    102     1367738    4.1    0.0     4.1    0.0
+     parseCmd           Main                    102     1367738    3.3    0.0     3.3    0.0
      currCmd            Main                    101     1367738    0.0    0.0     0.0    0.0
      cmds               Main                    100     1367738    0.0    0.0     0.0    0.0
     numCmds             Main                     98     1367739    0.0    0.0     0.0    0.0
@@ -77,9 +76,9 @@ MAIN                    MAIN                     44           0    0.0    0.0   
    parseArgs.b          Main                     93           0    0.0    0.0     0.0    0.0
   main                  Main                     88           1    0.0    0.0     0.0    0.0
  CAF                    GHC.IO.Encoding          77           0    0.0    0.0     0.0    0.0
- CAF                    GHC.IO.Handle.FD         76           0    0.0    0.0     0.0    0.0
- CAF                    GHC.Conc.Signal          73           0    0.0    0.0     0.0    0.0
- CAF                    GHC.IO.Encoding.Iconv    69           0    0.0    0.0     0.0    0.0
+ CAF                    GHC.IO.Handle.FD         75           0    0.0    0.0     0.0    0.0
+ CAF                    GHC.Conc.Signal          72           0    0.0    0.0     0.0    0.0
+ CAF                    GHC.IO.Encoding.Iconv    68           0    0.0    0.0     0.0    0.0
  CAF                    GHC.IO.FD                61           0    0.0    0.0     0.0    0.0
   main                  Main                    138           0    0.0    0.0     0.0    0.0
    parseArgs            Main                    139           0    0.0    0.0     0.0    0.0

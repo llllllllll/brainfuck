@@ -1,14 +1,14 @@
 -- Joe Jevnik
 -- 9.11.2013
--- Edited: 16.12.2013
+-- Edited: 20.12.2013
 
 import Control.Applicative ((<$>))
-import Data.Array.Unboxed  (Array,UArray,(!),(//),listArray,bounds)
+import Data.Array.Base     (unsafeAt,unsafeWrite)
+import Data.Array.Unboxed  (Array,UArray)
 import Data.Array.IO       (IOUArray)
-import Data.Array.MArray   (MArray,writeArray)
-import Data.Array.Unsafe   (unsafeThaw)
+import Data.Array.MArray   (MArray,newArray)
+import Data.Array.Unsafe   (unsafeThaw,unsafeFreeze)
 import Data.List           (groupBy)
-import Data.List.Utils     (replace)
 import Data.Word           (Word8)
 import System.Environment  (getArgs)
 import System.IO           (isEOF)
@@ -57,8 +57,9 @@ parseArgs as = do
                                                     then (head . tail) as
                                                     else head as)
     let csl = length cs
+    tp <- (newArray (0,29999) 0 :: IO (IOUArray Int Word8)) >>= unsafeFreeze
     process ProgState { ptr        = 0
-                      , tape       = listArray (0,29999) $ repeat 0
+                      , tape       = tp
                       , currCmd    = 0
                       , cmds       = listArray (0,csl - 1) cs
                       , numCmds    = csl
@@ -96,7 +97,7 @@ parseCmd NulFunc       = return . nulFunc
 
 -- | Applies the current command to the state.
 applyCommand :: ProgState -> IO ProgState
-applyCommand st = parseCmd (cmds st ! currCmd st) st
+applyCommand st = parseCmd (cmds st `unsafeAt` currCmd st) st
 
 -- | Loops through, calling apply to each command in the array.
 process :: ProgState -> IO ()
@@ -141,13 +142,9 @@ collapsePtrJmps cs = let cs' = groupBy g cs
       count (PtrLeft:cs)  = (\(a,b) -> (a,b + 1)) $ count cs
       count (c:cs)        = count cs
 
--- | Replaces the structure [-] with a single valSet to 0.
-replaceZeros :: [Command] -> [Command]
-replaceZeros = replace [BegLoop,ValDecr,EndLoop] [ValSet 0]
-
 -- | Applies the full optimizations.
 o2 :: [Command] -> [Command]
-o2 = collapsePtrJmps . collapseValChanges . replaceZeros
+o2 = collapsePtrJmps . collapseValChanges
 
 -- -----------------------------------------------------------------------------
 -- Commands.
@@ -162,20 +159,20 @@ ptrJump n st = case ptr st + n of
 -- | Increments the value at the current pointer by n.
 valChange :: Int -> ProgState -> IO ProgState
 valChange n st = (unsafeThaw (tape st) :: IO (IOUArray Int Word8))
-                 >>= \t -> writeArray t (ptr st) (change n st)
+                 >>= \t -> unsafeWrite t (ptr st) (change n st)
                  >> return (nulFunc st)
   where
-      change n st = fromIntegral $ n + fromIntegral (tape st ! ptr st)
+      change n st = fromIntegral $ n + fromIntegral (tape st `unsafeAt` ptr st)
 
 -- | Assings the current value to n
 valSet :: Word8 -> ProgState -> IO ProgState
 valSet n st = (unsafeThaw (tape st) :: IO (IOUArray Int Word8))
-              >>= \t -> writeArray t (ptr st) n
+              >>= \t -> unsafeWrite t (ptr st) n
               >> return (nulFunc st)
 
 -- | Prints the Word8 at tape st ! ptr st.
 valPrnt :: ProgState -> IO ProgState
-valPrnt st = putChar ((toEnum . fromEnum) (tape st ! ptr st))
+valPrnt st = putChar ((toEnum . fromEnum) (tape st `unsafeAt` ptr st))
              >> return (nulFunc st)
 
 -- | Reads a Word8 from the user to put at tape!ptr.
@@ -185,23 +182,26 @@ valInpt st = isEOF >>= \b ->
                then do
                    c <- getChar
                    t <- unsafeThaw (tape st) :: IO (IOUArray Int Word8)
-                   writeArray t (ptr st) ((toEnum . fromEnum) c)
+                   unsafeWrite t (ptr st) ((toEnum . fromEnum) c)
                    return $ nulFunc st
                else return $ nulFunc st
 
 -- | Begins a loop.
 begLoop :: ProgState -> ProgState
 begLoop st
-    | tape st ! ptr st == 0 = jmpLoop st
-    | otherwise             = nulFunc st { loopStates = currCmd st + 1
-                                                        : loopStates st }
+    | tape st `unsafeAt` ptr st == 0
+        = jmpLoop st
+    | otherwise
+        = nulFunc st { loopStates = currCmd st + 1 : loopStates st }
 
 -- | Brings the program back to the top of a loop if the value at the
 -- ptr is /= 0.
 endLoop :: ProgState -> ProgState
 endLoop st
-    | tape st ! ptr st == 0 = nulFunc st { loopStates = tail $ loopStates st }
-    | otherwise             = st { currCmd = head $ loopStates st }
+    | tape st `unsafeAt` ptr st == 0
+        = nulFunc st { loopStates = tail $ loopStates st }
+    | otherwise
+        = st { currCmd = head $ loopStates st }
 
 -- -----------------------------------------------------------------------------
 -- Helper functions
@@ -223,7 +223,13 @@ jmpLoop :: ProgState -> ProgState
 jmpLoop st = jmpLoop' (cmds st) (currCmd st) st 0
   where
       jmpLoop' cs cc st n
-          | n == 0 && cs ! (cc + 1) == EndLoop = st { currCmd = cc + 2 }
-          | cs ! (cc + 1) == EndLoop           = jmpLoop' cs (cc + 1) st (n - 1)
-          | cs ! (cc + 1) == BegLoop           = jmpLoop' cs (cc + 1) st (n + 1)
-          | otherwise                          = jmpLoop' cs (cc + 1) st n
+          | cc + 1                           == numCmds st
+              = error "Unmatched '['"
+          | n == 0 && cs `unsafeAt` (cc + 1) == EndLoop
+              = st { currCmd = cc + 2 }
+          | cs `unsafeAt` (cc + 1)           == EndLoop
+              = jmpLoop' cs (cc + 1) st (n - 1)
+          | cs `unsafeAt` (cc + 1)           == BegLoop
+              = jmpLoop' cs (cc + 1) st (n + 1)
+          | otherwise
+              = jmpLoop' cs (cc + 1) st n
