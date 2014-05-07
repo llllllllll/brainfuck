@@ -2,16 +2,18 @@
 -- 9.11.2013
 -- Edited: 20.12.2013
 
-import Control.Applicative ((<$>))
-import Data.Array.Base     (unsafeAt,unsafeWrite)
-import Data.Array.Unboxed  (Array,UArray)
-import Data.Array.IO       (IOUArray)
-import Data.Array.MArray   (MArray,newArray)
-import Data.Array.Unsafe   (unsafeThaw,unsafeFreeze)
-import Data.List           (groupBy)
-import Data.Word           (Word8)
-import System.Environment  (getArgs)
-import System.IO           (isEOF)
+import Control.Applicative                  ((<$>))
+import Data.Array.Base                      (unsafeAt,unsafeWrite)
+import Data.Array.Unboxed                   (Array,UArray,listArray)
+import Data.Array.IO                        (IOUArray)
+import Data.Array.MArray                    (MArray,newArray)
+import Data.Array.Unsafe                    (unsafeThaw,unsafeFreeze)
+import Data.ByteString.Char8                (ByteString)
+import qualified Data.ByteString.Char8 as B (readFile,head,tail,length)
+import Data.List                            (groupBy)
+import Data.Word                            (Word8)
+import System.Environment                   (getArgs)
+import System.IO                            (isEOF)
 
 -- -----------------------------------------------------------------------------
 -- Data types.
@@ -53,9 +55,9 @@ parseArgs as = do
     let b = "-O" `elem` as
     cs <- (if b
              then o2
-             else id) . getCommands <$> readFile (if b
-                                                    then (head . tail) as
-                                                    else head as)
+             else id) . getCommands <$> B.readFile (if b
+                                                      then (head . tail) as
+                                                      else head as)
     let csl = length cs
     tp <- (newArray (0,29999) 0 :: IO (IOUArray Int Word8)) >>= unsafeFreeze
     process ProgState { ptr        = 0
@@ -66,19 +68,27 @@ parseArgs as = do
                       , loopStates = []
                       }
 
+
+
 -- | Reads a string into a list of 'Command's
-getCommands :: String -> [Command]
-getCommands [] = []
-getCommands (c:cs)
-          | c == '>'  = PtrRight : getCommands cs
-          | c == '<'  = PtrLeft  : getCommands cs
-          | c == '+'  = ValIncr  : getCommands cs
-          | c == '-'  = ValDecr  : getCommands cs
-          | c == '.'  = ValPrnt  : getCommands cs
-          | c == ','  = ValInpt  : getCommands cs
-          | c == '['  = BegLoop  : getCommands cs
-          | c == ']'  = EndLoop  : getCommands cs
-          | otherwise =            getCommands cs
+getCommands :: ByteString -> [Command]
+getCommands bs
+    | B.length bs == 1 = case getCommand (B.head bs) of
+                             Just c  -> [c]
+                             Nothing -> []
+    | otherwise        = case getCommand (B.head bs) of
+                             Just c  -> c : getCommands (B.tail bs)
+                             Nothing ->     getCommands (B.tail bs)
+  where
+      getCommand '>' = Just PtrRight
+      getCommand '<' = Just PtrLeft
+      getCommand '+' = Just ValIncr
+      getCommand '-' = Just ValDecr
+      getCommand '.' = Just ValPrnt
+      getCommand ',' = Just ValInpt
+      getCommand '[' = Just BegLoop
+      getCommand ']' = Just EndLoop
+      getCommand c   = Nothing
 
 -- | Converts a 'Command' into the proper function
 parseCmd :: Command -> ProgState -> IO ProgState
