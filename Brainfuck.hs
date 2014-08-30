@@ -1,8 +1,15 @@
+-- |
+-- Module      : Brainfuck
+-- Copyright   : Joe Jevnik
+--
+-- License     : GPL-2
+-- Maintainer  : joejev@gmail.org
+-- Stability   : stable
+-- Portability : GHC
+--
+-- Interpreter for Brainfuck.
 {-# LANGUAGE TupleSections, LambdaCase #-}
-
--- Joe Jevnik
--- 9.11.2013
--- Edited: 20.12.2013
+module Brainfuck where
 
 import Control.Exception (try,SomeException)
 import Control.Monad (void)
@@ -15,29 +22,19 @@ import Data.Array.ST (STUArray)
 import Data.Array.MArray (MArray,newArray)
 import Data.ByteString.Char8 (ByteString)
 import qualified Data.ByteString.Char8 as B (readFile,head,tail,foldr)
-import Data.List (groupBy)
 import Data.STRef (STRef,newSTRef,readSTRef,writeSTRef,modifySTRef',modifySTRef)
 import Data.Word (Word8)
 import System.Environment (getArgs)
 import System.IO (isEOF)
 
+
+import Brainfuck.Lexer (Instruction(..),getInstructions)
+import Brainfuck.Optimization (o2)
+
+
 -- -----------------------------------------------------------------------------
 -- Data types.
 
--- | Represents the types of instructions that can be read or performed.
-data Instruction = PtrRight       -- ^ '>'
-                 | PtrLeft       -- ^ '<'
-                 | PtrJump Int   -- ^ Repeated calls to ptr movements.
-                 | ValIncr       -- ^ '+'
-                 | ValDecr       -- ^ '-'
-                 | ValChange Int -- ^ Repeated calls to val changes
-                 | ValSet Word8  -- ^ Directly sets the pointer to a value.
-                 | ValPrnt       -- ^ '.'
-                 | ValInpt       -- ^ ','
-                 | BegLoop       -- ^ '['
-                 | EndLoop       -- ^ ']'
-                 | NulFunc       -- ^ Do nothing.
-                   deriving (Eq,Show)
 
 -- | Data type to hold the state of the program.
 data ProgState s i e = ProgState { ptr        :: STRef s Int
@@ -76,22 +73,6 @@ parseArgs (a:_) = B.readFile a
 
 
 
--- | Reads a ByteString into a list of 'Instruction's
-getInstructions :: ByteString -> [Instruction]
-getInstructions bs = B.foldr (\b cs -> case getInstruction b of
-                                    Just c  -> c : cs
-                                    Nothing -> cs) [] bs
-  where
-      getInstruction '>' = Just PtrRight
-      getInstruction '<' = Just PtrLeft
-      getInstruction '+' = Just ValIncr
-      getInstruction '-' = Just ValDecr
-      getInstruction '.' = Just ValPrnt
-      getInstruction ',' = Just ValInpt
-      getInstruction '[' = Just BegLoop
-      getInstruction ']' = Just EndLoop
-      getInstruction _   = Nothing
-
 
 -- | Converts a 'Instruction' into the proper function
 parseCmd :: Instruction -> Command
@@ -121,55 +102,11 @@ runBrainfuck nc cs = void
                                             (ProgState ptr tp cc cs nc ls))
                       :: IO (Either SomeException ()))
 
+
 processInstructions :: Operation
 processInstructions st =
     readSTRef (currCmd st) >>= \cc -> apply (cmds st `unsafeAt` cc) st
                                       >> processInstructions st
-
-
--- -----------------------------------------------------------------------------
--- Optimization.
-
-
--- | Collapses all chains of '+' and '-' into a single ValChange command.
-collapseValChanges :: [Instruction] -> [Instruction]
-collapseValChanges cs = let cs' = groupBy g cs
-                        in cs' >>= \c -> case count c of
-                                             (0,0)   -> c
-                                             (ic,dc) -> [ValChange (ic - dc)]
-  where
-      g ValIncr ValIncr  = True
-      g ValIncr ValDecr  = True
-      g ValDecr ValIncr  = True
-      g ValDecr ValDecr  = True
-      g _ _              = False
-      count []           = (0,0)
-      count (ValIncr:cs) = (\(a,b) -> (a + 1,b)) $ count cs
-      count (ValDecr:cs) = (\(a,b) -> (a,b + 1)) $ count cs
-      count (c:cs)       = count cs
-
-
--- | Collapses all chains of '>' and '<' into one PtrJump command.
-collapsePtrJmps :: [Instruction] -> [Instruction]
-collapsePtrJmps cs = let cs' = groupBy g cs
-                     in cs' >>= \c -> case count c of
-                                          (0,0)   -> c
-                                          (rc,lc) -> [PtrJump (rc - lc)]
-  where
-      g PtrRight PtrRight = True
-      g PtrRight PtrLeft  = True
-      g PtrLeft  PtrRight = True
-      g PtrLeft  PtrLeft  = True
-      g _ _               = False
-      count []            = (0,0)
-      count (PtrRight:cs) = (\(a,b) -> (a + 1,b)) $ count cs
-      count (PtrLeft:cs)  = (\(a,b) -> (a,b + 1)) $ count cs
-      count (c:cs)        = count cs
-
-
--- | Applies the full optimizations.
-o2 :: [Instruction] -> [Instruction]
-o2 = collapsePtrJmps . collapseValChanges
 
 
 -- -----------------------------------------------------------------------------
